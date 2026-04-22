@@ -15,6 +15,11 @@ import { parseZodErrors } from "@/lib/utils";
 
 const registerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(50, "Name is too long"),
+  username: z
+    .string()
+    .min(3, "Username must be at least 3 characters")
+    .max(20, "Username must be at most 20 characters")
+    .regex(/^[a-z0-9_]+$/, "Only lowercase letters, numbers and _"),
   email: z.string().email("Enter a valid email"),
   password: z.string().min(6, "Password must be at least 6 characters").max(100, "Password is too long"),
 });
@@ -23,7 +28,7 @@ type RegisterForm = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [form, setForm] = useState<RegisterForm>({ name: "", email: "", password: "" });
+  const [form, setForm] = useState<RegisterForm>({ name: "", username: "", email: "", password: "" });
   const [errors, setErrors] = useState<Partial<RegisterForm>>({});
   const [serverError, setServerError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -33,6 +38,14 @@ export default function RegisterPage() {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
     setErrors((prev) => ({ ...prev, [name]: "" }));
+    setServerError("");
+  };
+
+  // Username: только строчные, цифры и _; убираем @ если вставили
+  const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/^@/, "").toLowerCase().replace(/[^a-z0-9_]/g, "");
+    setForm((prev) => ({ ...prev, username: raw }));
+    setErrors((prev) => ({ ...prev, username: "" }));
     setServerError("");
   };
 
@@ -97,6 +110,7 @@ export default function RegisterPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <ErrorAlert message={serverError} />
 
+            {/* Name */}
             <div className="space-y-1">
               <label className="text-sm text-gray-300 font-medium">Name</label>
               <div className="relative">
@@ -104,7 +118,7 @@ export default function RegisterPage() {
                 <Input
                   name="name"
                   type="text"
-                  placeholder="Alex"
+                  placeholder="Alex Petrov"
                   value={form.name}
                   onChange={handleChange}
                   error={errors.name}
@@ -114,6 +128,35 @@ export default function RegisterPage() {
               </div>
             </div>
 
+            {/* Username */}
+            <div className="space-y-1">
+              <label className="text-sm text-gray-300 font-medium">Username</label>
+              <div className="relative">
+                {/* @ prefix — always visible, non-editable */}
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-mono text-sm select-none pointer-events-none">
+                  @
+                </span>
+                <Input
+                  name="username"
+                  type="text"
+                  placeholder="alex_petrov"
+                  value={form.username}
+                  onChange={handleUsernameChange}
+                  error={errors.username}
+                  className="pl-7 font-mono"
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                />
+              </div>
+              {!errors.username && (
+                <p className="text-xs text-gray-600">
+                  Letters, numbers and _ only · 3–20 characters
+                </p>
+              )}
+            </div>
+
+            {/* Email */}
             <div className="space-y-1">
               <label className="text-sm text-gray-300 font-medium">Email</label>
               <div className="relative">
@@ -131,6 +174,7 @@ export default function RegisterPage() {
               </div>
             </div>
 
+            {/* Password */}
             <div className="space-y-1">
               <label className="text-sm text-gray-300 font-medium">Password</label>
               <div className="relative">

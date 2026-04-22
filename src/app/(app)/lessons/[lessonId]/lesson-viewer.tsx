@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
@@ -21,8 +21,10 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { notify } from "@/store/notification-store";
+import { useChatStore } from "@/store/chat-store";
 import { QuizSection } from "@/components/lesson/quiz-section";
 import { PracticeSection, PracticeTaskData } from "@/components/lesson/practice-section";
+import { LevelUpOverlay } from "@/components/ui/level-up-overlay";
 import { useTranslation } from "@/hooks/use-translation";
 
 // ============================================
@@ -90,6 +92,33 @@ interface Props {
 }
 
 // ============================================
+// ISOLATED TIMER — re-renders only itself, not LessonViewer
+// ============================================
+
+function LessonTimer({ onTwoMinutes }: { onTwoMinutes: () => void }) {
+  const [secs, setSecs] = useState(0);
+  const firedRef = useRef(false);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSecs((s) => {
+        const next = s + 1;
+        if (next === 120 && !firedRef.current) {
+          firedRef.current = true;
+          onTwoMinutes();
+        }
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [onTwoMinutes]);
+
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return <>{m}:{s.toString().padStart(2, "0")}</>;
+}
+
+// ============================================
 // TOC — оглавление из заголовков
 // ============================================
 
@@ -128,55 +157,87 @@ export function LessonViewer({
   practiceTasks,
 }: Props) {
   const router = useRouter();
-  const { t, locale } = useTranslation();
+  const { t } = useTranslation();
+  const { setLessonContext } = useChatStore();
   const [isCompleting, setIsCompleting] = useState(false);
   const [isCompleted, setIsCompleted] = useState(progress?.completed ?? false);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [levelUp, setLevelUp] = useState<{ level: number; title: string } | null>(null);
   const [readProgress, setReadProgress] = useState(0);
   const [focusMode, setFocusMode] = useState(false);
   const [showToc, setShowToc] = useState(false);
   const startTimeRef = useRef<number>(Date.now());
   const contentRef = useRef<HTMLDivElement>(null);
 
-  // Контент и заголовки в зависимости от языка
-  const lessonTitle = locale === "en" && lesson.titleEn ? lesson.titleEn : lesson.title;
-  const lessonContent = locale === "en" && lesson.contentEn ? lesson.contentEn : lesson.content;
-  const moduleTitle = locale === "en" && lesson.module.titleEn ? lesson.module.titleEn : lesson.module.title;
-  const hasEnContent = locale !== "en" || !!lesson.contentEn;
+  // Контент и заголовки в зависимости от языка — мемоизируем чтобы не пересчитывать при каждом тике таймера
+  const lessonTitle = useMemo(
+    () => (lesson.titleEn ?? lesson.title),
+    [lesson.titleEn, lesson.title]
+  );
+  const lessonContent = useMemo(
+    () => (lesson.contentEn ?? lesson.content),
+    [lesson.contentEn, lesson.content]
+  );
+  const moduleTitle = useMemo(
+    () => (lesson.module.titleEn ?? lesson.module.title),
+    [lesson.module.titleEn, lesson.module.title]
+  );
+  const hasEnContent = !!lesson.contentEn;
 
-  // TOC
-  const toc = extractToc(lessonContent);
+  // TOC — дорогостоящий парсинг, мемоизируем (иначе пересчитывается на каждый тик таймера и скролл)
+  const toc = useMemo(() => extractToc(lessonContent), [lessonContent]);
 
-  // Индекс текущего урока
+  // Индекс текущего урока — мемоизируем
   const lessons = lesson.module.lessons;
-  const currentIdx = lessons.findIndex((l) => l.id === lesson.id);
+  const currentIdx = useMemo(
+    () => lessons.findIndex((l) => l.id === lesson.id),
+    [lessons, lesson.id]
+  );
   const prevLesson = lessons[currentIdx - 1] ?? null;
 
-  // Таймер
+  // Передаём контекст текущего урока в чат-бот
   useEffect(() => {
-    const interval = setInterval(() => {
-      setElapsedSeconds((s) => s + 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
+    const ctx = `Current lesson: "${lessonTitle}" | Module ${lesson.module.order}: "${moduleTitle}" | Lesson ${currentIdx + 1}/${lessons.length}`;
+    setLessonContext(ctx);
+    return () => setLessonContext(null);
+  }, [lessonTitle, moduleTitle, lesson.module.order, currentIdx, lessons.length, setLessonContext]);
 
-  // Прогресс прокрутки
-  useEffect(() => {
-    const handleScroll = () => {
-      const el = contentRef.current;
-      if (!el) return;
-      const { scrollTop, clientHeight } = document.documentElement;
-      const contentTop = el.offsetTop;
-      const contentHeight = el.offsetHeight;
-      const scrolled = scrollTop - contentTop;
-      const p = Math.min(
-        Math.max((scrolled / (contentHeight - clientHeight + 100)) * 100, 0),
-        100
+  // Callback для LessonTimer — срабатывает ровно один раз в 2 минуты
+  const handleTwoMinutes = useCallback(() => {
+    if (!isCompleted) {
+      notify.info(
+        "You've been studying for 2 minutes! Keep going 🔥",
+        "📚"
       );
-      setReadProgress(Math.round(p));
+    }
+  }, [isCompleted]);
+
+  // Прогресс прокрутки — RAF throttle: не более одного setState за кадр
+  useEffect(() => {
+    let rafId: number | undefined;
+
+    const handleScroll = () => {
+      if (rafId !== undefined) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = undefined;
+        const el = contentRef.current;
+        if (!el) return;
+        const { scrollTop, clientHeight } = document.documentElement;
+        const contentTop = el.offsetTop;
+        const contentHeight = el.offsetHeight;
+        const scrolled = scrollTop - contentTop;
+        const p = Math.min(
+          Math.max((scrolled / (contentHeight - clientHeight + 100)) * 100, 0),
+          100
+        );
+        setReadProgress(Math.round(p));
+      });
     };
+
     window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (rafId !== undefined) cancelAnimationFrame(rafId);
+    };
   }, []);
 
   // Клавиатурная навигация ← →
@@ -201,12 +262,6 @@ export function LessonViewer({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
-  const formatTime = (seconds: number): string => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, "0")}`;
-  };
-
   const handleComplete = async () => {
     if (isCompleted || isCompleting) return;
     setIsCompleting(true);
@@ -223,6 +278,9 @@ export function LessonViewer({
         const data = await res.json();
         setIsCompleted(true);
         if (data.xpEarned > 0) notify.xp(data.xpEarned);
+        if (data.leveledUp && data.newLevel) {
+          setTimeout(() => setLevelUp({ level: data.newLevel, title: data.newLevelTitle }), 600);
+        }
         if (data.newAchievements?.length > 0) {
           data.newAchievements.forEach(
             (a: { title: string; emoji: string; xpReward: number }) => {
@@ -244,6 +302,15 @@ export function LessonViewer({
 
   return (
     <div className={`transition-all duration-300 ${focusMode ? "max-w-3xl" : "max-w-4xl"} mx-auto`}>
+
+      {/* Level-up overlay */}
+      {levelUp && (
+        <LevelUpOverlay
+          level={levelUp.level}
+          levelTitle={levelUp.title}
+          onClose={() => setLevelUp(null)}
+        />
+      )}
 
       {/* Прогресс чтения */}
       <div className="fixed top-0 left-0 right-0 z-50 h-0.5">
@@ -273,10 +340,10 @@ export function LessonViewer({
             <button
               onClick={() => setShowToc((v) => !v)}
               className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white px-2.5 py-1.5 rounded-lg border border-white/10 hover:border-white/20 transition-all"
-              title="Оглавление"
+              title={t("lesson.toc")}
             >
               <List className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Оглавление</span>
+              <span className="hidden sm:inline">{t("lesson.toc")}</span>
             </button>
           )}
 
@@ -284,10 +351,10 @@ export function LessonViewer({
           <button
             onClick={() => setFocusMode((v) => !v)}
             className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white px-2.5 py-1.5 rounded-lg border border-white/10 hover:border-white/20 transition-all"
-            title={focusMode ? "Выйти из фокуса (F)" : "Режим фокуса (F)"}
+            title={focusMode ? t("lesson.exitFocusTooltip") : t("lesson.focusModeTooltip")}
           >
             {focusMode ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-            <span className="hidden sm:inline">{focusMode ? "Выйти" : "Фокус"}</span>
+            <span className="hidden sm:inline">{focusMode ? t("lesson.exitFocus") : t("lesson.focusMode")}</span>
           </button>
         </div>
       </div>
@@ -300,7 +367,7 @@ export function LessonViewer({
             return (
               <Link key={l.id} href={`/lessons/${l.id}`}>
                 <div
-                  title={`${String(l.order).padStart(2, "0")}. ${locale === "en" && l.titleEn ? l.titleEn : l.title}`}
+                  title={`${String(l.order).padStart(2, "0")}. ${l.titleEn ?? l.title}`}
                   className={`h-1.5 rounded-full transition-all duration-200 flex-shrink-0
                     ${isCurrent
                       ? "w-8 bg-emerald-400"
@@ -322,7 +389,7 @@ export function LessonViewer({
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-medium text-white flex items-center gap-2">
               <List className="w-4 h-4" />
-              Содержание урока
+              Table of contents
             </h3>
             <button onClick={() => setShowToc(false)} className="text-gray-500 hover:text-white">
               <X className="w-4 h-4" />
@@ -440,7 +507,7 @@ export function LessonViewer({
             {/* Подсказка клавиш */}
             {!focusMode && (
               <p className="text-xs text-gray-600 text-center mt-4">
-                ← → для навигации между уроками · F для режима фокуса
+                ← → to navigate between lessons · F for focus mode
               </p>
             )}
           </div>
@@ -458,11 +525,11 @@ export function LessonViewer({
                     <Clock className="w-3.5 h-3.5" />
                     {t("lesson.timeOnLesson")}
                   </div>
-                  <div className="font-mono text-sm text-white">{formatTime(elapsedSeconds)}</div>
+                  <div className="font-mono text-sm text-white"><LessonTimer onTwoMinutes={handleTwoMinutes} /></div>
                 </div>
                 <div>
                   <div className="flex justify-between text-xs text-gray-500 mb-1">
-                    <span>Прочитано</span>
+                    <span>{t("lesson.readProgress")}</span>
                     <span>{readProgress}%</span>
                   </div>
                   <Progress value={readProgress} className="h-1.5" />
@@ -476,7 +543,7 @@ export function LessonViewer({
                 </h3>
                 <div className="space-y-0.5 max-h-80 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
                   {lessons.map((l, i) => {
-                    const lTitle = locale === "en" && l.titleEn ? l.titleEn : l.title;
+                    const lTitle = l.titleEn ?? l.title;
                     const isCurr = l.id === lesson.id;
                     const isDone = i < currentIdx;
                     return (
@@ -510,9 +577,9 @@ export function LessonViewer({
               {/* Следующий урок превью */}
               {!isCompleted && nextLesson && (
                 <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                  <p className="text-xs text-gray-500 mb-1">Следующий урок:</p>
+                  <p className="text-xs text-gray-500 mb-1">Next lesson:</p>
                   <p className="text-xs text-gray-300 leading-snug">
-                    {locale === "en" && nextLesson.titleEn ? nextLesson.titleEn : nextLesson.title}
+                    {nextLesson.titleEn ?? nextLesson.title}
                   </p>
                 </div>
               )}

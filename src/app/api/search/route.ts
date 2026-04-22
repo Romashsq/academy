@@ -9,7 +9,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const q = req.nextUrl.searchParams.get("q")?.trim() ?? "";
+  const raw = req.nextUrl.searchParams.get("q")?.trim() ?? "";
+  const q = raw.slice(0, 100); // max 100 символов
   if (q.length < 2) {
     return NextResponse.json({ lessons: [], modules: [] });
   }

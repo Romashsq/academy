@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/hooks/use-translation";
+import { useChatStore } from "@/store/chat-store";
+import { notify } from "@/store/notification-store";
 
 // ============================================
 // ТИПЫ
@@ -33,6 +35,8 @@ export interface PracticeTaskData {
   description: string;
   descriptionEn: string;
   order: number;
+  imageUrl?: string | null;
+  imageAlt?: string | null;
   submissions: SubmissionData[];
 }
 
@@ -40,7 +44,6 @@ interface AiReview {
   rating: "excellent" | "good" | "needs_work";
   feedback: string;
   tips: string[];
-  locale: string;
 }
 
 interface SubmissionData {
@@ -199,7 +202,7 @@ function SubmitForm({ taskId, lessonId, existingSubmission, onSuccess, onCancel 
           <input
             ref={fileRef}
             type="file"
-            accept={type === "screenshot" ? "image/*" : undefined}
+            accept={type === "screenshot" ? "image/*" : "image/*,.pdf"}
             onChange={handleFileUpload}
             className="hidden"
           />
@@ -265,11 +268,13 @@ function SubmitForm({ taskId, lessonId, existingSubmission, onSuccess, onCancel 
 interface AiReviewCardProps {
   submissionId: string;
   cachedReview: AiReview | null;
-  locale: string;
+  taskTitle: string;
+  taskDescription: string;
 }
 
-function AiReviewCard({ submissionId, cachedReview, locale }: AiReviewCardProps) {
+function AiReviewCard({ submissionId, cachedReview, taskTitle, taskDescription }: AiReviewCardProps) {
   const { t } = useTranslation();
+  const { setOpen: setChatOpen, setPrefillMessage } = useChatStore();
   const [review, setReview] = useState<AiReview | null>(cachedReview);
   const [loading, setLoading] = useState(!cachedReview);
   const [error, setError] = useState(false);
@@ -281,17 +286,25 @@ function AiReviewCard({ submissionId, cachedReview, locale }: AiReviewCardProps)
       const res = await fetch(`/api/practice/submission/${submissionId}/review`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ locale }),
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setReview(data.review);
+      if (data.review?.rating === "needs_work") {
+        setTimeout(() => {
+          notify.info(
+            "Need help with this task? Ask the mentor — they'll explain! 💬",
+            "🤔"
+          );
+        }, 1200);
+      }
     } catch {
       setError(true);
     } finally {
       setLoading(false);
     }
-  }, [submissionId, locale]);
+  }, [submissionId]);
 
   useEffect(() => {
     if (!cachedReview) {
@@ -365,6 +378,25 @@ function AiReviewCard({ submissionId, cachedReview, locale }: AiReviewCardProps)
                 </ul>
               </div>
             )}
+
+            {/* Кнопка ментора при needs_work */}
+            {review.rating === "needs_work" && (
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-violet-500/5 border border-violet-500/15 mt-1">
+                <p className="text-xs text-gray-400">
+                  {"Want the AI mentor to explain this topic in detail?"}
+                </p>
+                <button
+                  onClick={() => {
+                    const msg = `I submitted the task "${taskTitle}" but got needs_work. Please explain this topic in more detail: ${taskDescription}`;
+                    setPrefillMessage(msg);
+                    setChatOpen(true);
+                  }}
+                  className="ml-3 flex-shrink-0 text-xs text-violet-400 hover:text-violet-300 border border-violet-500/30 px-2.5 py-1 rounded-lg hover:bg-violet-500/10 transition-all"
+                >
+                  Ask mentor →
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -381,15 +413,16 @@ interface SubmissionViewProps {
   onEdit: () => void;
   onDelete: () => void;
   deleting: boolean;
-  locale: string;
+  taskTitle: string;
+  taskDescription: string;
 }
 
-function SubmissionView({ submission, onEdit, onDelete, deleting, locale }: SubmissionViewProps) {
+function SubmissionView({ submission, onEdit, onDelete, deleting, taskTitle, taskDescription }: SubmissionViewProps) {
   const { t } = useTranslation();
   const cachedReview: AiReview | null = submission.aiReview
     ? (() => { try { return JSON.parse(submission.aiReview!); } catch { return null; } })()
     : null;
-  const date = new Date(submission.submittedAt).toLocaleDateString("ru-RU", {
+  const date = new Date(submission.submittedAt).toLocaleDateString("en-US", {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -472,7 +505,8 @@ function SubmissionView({ submission, onEdit, onDelete, deleting, locale }: Subm
       <AiReviewCard
         submissionId={submission.id}
         cachedReview={cachedReview}
-        locale={locale}
+        taskTitle={taskTitle}
+        taskDescription={taskDescription}
       />
     </div>
   );
@@ -485,18 +519,17 @@ function SubmissionView({ submission, onEdit, onDelete, deleting, locale }: Subm
 interface TaskCardProps {
   task: PracticeTaskData;
   lessonId: string;
-  locale: string;
 }
 
-function TaskCard({ task, lessonId, locale }: TaskCardProps) {
+function TaskCard({ task, lessonId }: TaskCardProps) {
   const { t } = useTranslation();
   const [taskState, setTaskState] = useState<TaskState>("idle");
   const [submission, setSubmission] = useState<SubmissionData | null>(task.submissions[0] ?? null);
   const [expanded, setExpanded] = useState(!submission);
   const [deleting, setDeleting] = useState(false);
 
-  const title = locale === "en" ? task.titleEn : task.title;
-  const description = locale === "en" ? task.descriptionEn : task.description;
+  const title = task.titleEn ?? task.title;
+  const description = task.descriptionEn ?? task.description;
   const isDone = !!submission;
 
   const handleDelete = async () => {
@@ -531,6 +564,15 @@ function TaskCard({ task, lessonId, locale }: TaskCardProps) {
       {/* Раскрытое содержимое */}
       {expanded && (
         <div className="px-4 pb-4">
+          {/* Иллюстрация задания */}
+          {task.imageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={task.imageUrl}
+              alt={task.imageAlt ?? title}
+              className="w-full h-40 object-cover rounded-lg mb-4 opacity-80"
+            />
+          )}
           <p className="text-gray-400 text-sm leading-relaxed mb-4">{description}</p>
 
           {/* Если есть сабмит и не редактируем */}
@@ -540,7 +582,8 @@ function TaskCard({ task, lessonId, locale }: TaskCardProps) {
               onEdit={() => setTaskState("editing")}
               onDelete={handleDelete}
               deleting={deleting}
-              locale={locale}
+              taskTitle={title}
+              taskDescription={description}
             />
           )}
 
@@ -582,7 +625,7 @@ function TaskCard({ task, lessonId, locale }: TaskCardProps) {
 // ============================================
 
 export function PracticeSection({ lessonId, tasks }: Props) {
-  const { t, locale } = useTranslation();
+  const { t } = useTranslation();
 
   const completedCount = tasks.filter((task) => task.submissions.length > 0).length;
   const allDone = completedCount === tasks.length;
@@ -616,7 +659,6 @@ export function PracticeSection({ lessonId, tasks }: Props) {
             key={task.id}
             task={task}
             lessonId={lessonId}
-            locale={locale}
           />
         ))}
       </div>

@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { calculateLevel } from "./utils";
 
 // ============================================
 // GAMIFICATION SERVICE
@@ -20,6 +21,9 @@ export class GamificationService {
     newAchievements: Array<{ title: string; emoji: string; xpReward: number }>;
     streakUpdated: boolean;
     newStreak: number;
+    leveledUp: boolean;
+    newLevel: number;
+    newLevelTitle: string;
   }> {
     // Проверяем, не завершён ли урок уже
     const existingProgress = await prisma.lessonProgress.findUnique({
@@ -27,7 +31,7 @@ export class GamificationService {
     });
 
     if (existingProgress?.completed) {
-      return { xpEarned: 0, newAchievements: [], streakUpdated: false, newStreak: 0 };
+      return { xpEarned: 0, newAchievements: [], streakUpdated: false, newStreak: 0, leveledUp: false, newLevel: 0, newLevelTitle: "" };
     }
 
     // Получаем данные урока
@@ -68,6 +72,9 @@ export class GamificationService {
 
     if (!user) throw new Error("User not found");
 
+    // Уровень ДО начисления XP
+    const levelBefore = calculateLevel(user.totalXP).level;
+
     // Вычисляем стрик
     const { newStreak, streakUpdated } = this.calculateStreak(
       user.currentStreak,
@@ -84,10 +91,14 @@ export class GamificationService {
       },
     });
 
+    // Уровень ПОСЛЕ начисления XP
+    const { level: levelAfter, title: levelTitleAfter } = calculateLevel(user.totalXP + xpEarned);
+    const leveledUp = levelAfter > levelBefore;
+
     // Проверяем и выдаём достижения
     const newAchievements = await this.checkAndGrantAchievements(userId);
 
-    return { xpEarned, newAchievements, streakUpdated, newStreak };
+    return { xpEarned, newAchievements, streakUpdated, newStreak, leveledUp, newLevel: levelAfter, newLevelTitle: levelTitleAfter };
   }
 
   // ──────────────────────────────────────────
@@ -104,8 +115,13 @@ export class GamificationService {
 
     const now = new Date();
     const lastDate = new Date(lastActiveAt);
-    const diffDays = Math.floor(
-      (now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24)
+
+    // Сравниваем по КАЛЕНДАРНЫМ датам (без времени), иначе:
+    // занятие в 23:59 пн + занятие в 00:01 ср = 1 час = 0 дней → стрик не сбросится!
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const lastMidnight = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
+    const diffDays = Math.round(
+      (todayMidnight.getTime() - lastMidnight.getTime()) / (1000 * 60 * 60 * 24)
     );
 
     if (diffDays === 0) {
@@ -127,8 +143,8 @@ export class GamificationService {
   private static async checkAndGrantAchievements(
     userId: string
   ): Promise<Array<{ title: string; emoji: string; xpReward: number }>> {
-    // Получаем все достижения и уже полученные пользователем
-    const [allAchievements, userAchievements, user] = await Promise.all([
+    // Загружаем всё параллельно, включая все модули — чтобы не делать N+1 запросов в цикле
+    const [allAchievements, userAchievements, user, allModules] = await Promise.all([
       prisma.achievement.findMany(),
       prisma.userAchievement.findMany({
         where: { userId },
@@ -141,13 +157,25 @@ export class GamificationService {
           currentStreak: true,
           lessonProgress: {
             where: { completed: true },
-            select: { lessonId: true, lesson: { select: { moduleId: true } } },
+            select: { lessonId: true, lesson: { select: { moduleId: true, id: true } } },
           },
+        },
+      }),
+      // Предзагружаем модули — убирает N+1 в цикле достижений
+      prisma.module.findMany({
+        where: { isPublished: true },
+        select: {
+          id: true,
+          order: true,
+          lessons: { where: { isPublished: true }, select: { id: true } },
         },
       }),
     ]);
 
     if (!user) return [];
+
+    // Индексируем модули по order для O(1) lookup
+    const modulesByOrder = new Map(allModules.map((m) => [m.order, m]));
 
     const earnedIds = new Set(userAchievements.map((ua) => ua.achievementId));
     const newAchievements: Array<{ title: string; emoji: string; xpReward: number }> = [];
@@ -172,14 +200,8 @@ export class GamificationService {
           break;
 
         case "module_complete": {
-          // Проверяем, завершён ли конкретный модуль
-          const module = await prisma.module.findFirst({
-            where: { order: condition.value },
-            select: {
-              id: true,
-              lessons: { where: { isPublished: true }, select: { id: true } },
-            },
-          });
+          // O(1) lookup — модули уже загружены выше
+          const module = modulesByOrder.get(condition.value);
           if (module) {
             const completedInModule = user.lessonProgress.filter(
               (p) => p.lesson.moduleId === module.id
@@ -190,9 +212,13 @@ export class GamificationService {
         }
 
         case "all_modules_complete": {
-          const totalModules = await prisma.module.count({ where: { isPublished: true } });
-          const uniqueModules = new Set(user.lessonProgress.map((p) => p.lesson.moduleId));
-          earned = uniqueModules.size >= totalModules;
+          // allModules уже загружен — не делаем лишний запрос
+          const completedIds = new Set(user.lessonProgress.map((p) => p.lessonId));
+          earned = allModules.every(
+            (m) =>
+              m.lessons.length > 0 &&
+              m.lessons.every((l) => completedIds.has(l.id))
+          );
           break;
         }
       }

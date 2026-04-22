@@ -38,52 +38,53 @@ export function calculateLevel(xp: number): {
   title: string;
   nextLevelXP: number;
   progress: number;
+  isMaxLevel: boolean;
 } {
   const levels = [
-    { level: 1, title: "Новичок", xp: 0 },
-    { level: 2, title: "Ученик", xp: 500 },
-    { level: 3, title: "Практик", xp: 2000 },
-    { level: 4, title: "Эксперт", xp: 5000 },
-    { level: 5, title: "Мастер", xp: 10000 },
+    { level: 1, title: "Beginner", xp: 0 },
+    { level: 2, title: "Student", xp: 500 },
+    { level: 3, title: "Practitioner", xp: 2000 },
+    { level: 4, title: "Expert", xp: 5000 },
+    { level: 5, title: "Master", xp: 10000 },
   ];
 
   let currentLevel = levels[0];
-  let nextLevel = levels[1];
+  let nextLevel: typeof levels[0] | null = levels[1];
 
   for (let i = 0; i < levels.length; i++) {
     if (xp >= levels[i].xp) {
       currentLevel = levels[i];
-      nextLevel = levels[i + 1] ?? levels[i];
+      nextLevel = levels[i + 1] ?? null;
     }
   }
 
+  const isMaxLevel = nextLevel === null;
+
   const progressXP = xp - currentLevel.xp;
-  const rangeXP = nextLevel.xp - currentLevel.xp;
-  const progress = rangeXP > 0 ? Math.min((progressXP / rangeXP) * 100, 100) : 100;
+  const rangeXP = nextLevel ? nextLevel.xp - currentLevel.xp : 1;
+  const progress = isMaxLevel ? 100 : Math.min((progressXP / rangeXP) * 100, 100);
 
   return {
     level: currentLevel.level,
     title: currentLevel.title,
-    nextLevelXP: nextLevel.xp,
+    nextLevelXP: nextLevel ? nextLevel.xp : currentLevel.xp,
     progress,
+    isMaxLevel,
   };
 }
 
-// Относительное время ("2 часа назад")
+// Relative time ("2 hours ago")
 export function timeAgo(date: Date | string): string {
   const now = new Date();
   const d = new Date(date);
   const diffMs = now.getTime() - d.getTime();
   const diffMin = Math.floor(diffMs / 60000);
 
-  if (diffMin < 1) return "только что";
-  if (diffMin < 60) return `${diffMin} мин назад`;
-
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin} min ago`;
   const diffHours = Math.floor(diffMin / 60);
-  if (diffHours < 24) return `${diffHours} ч назад`;
-
+  if (diffHours < 24) return `${diffHours}h ago`;
   const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 7) return `${diffDays} дн назад`;
-
-  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return d.toLocaleDateString("en-US", { day: "numeric", month: "short" });
 }

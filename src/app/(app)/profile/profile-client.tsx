@@ -66,7 +66,7 @@ export function ProfileClient({
   achievements,
   recentLessons,
 }: Props) {
-  const { t, locale } = useTranslation();
+  const { t } = useTranslation();
   const studentLabel = t("profile.student");
 
   return (
@@ -88,7 +88,7 @@ export function ProfileClient({
           <p className="text-gray-500 text-xs flex items-center gap-1">
             <Calendar className="w-3.5 h-3.5" />
             {t("profile.memberSince")}{" "}
-            {new Date(createdAt).toLocaleDateString(locale === "en" ? "en-US" : "ru-RU", {
+            {new Date(createdAt).toLocaleDateString("en-US", {
               month: "long",
               year: "numeric",
             })}

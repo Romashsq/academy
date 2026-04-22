@@ -16,6 +16,6 @@ export const useThemeStore = create<ThemeStore>()(
       setTheme: (theme) => set({ theme }),
       toggle: () => set({ theme: get().theme === "dark" ? "light" : "dark" }),
     }),
-    { name: "vibecode-theme" }
+    { name: "vibecode-theme", skipHydration: true }
   )
 );

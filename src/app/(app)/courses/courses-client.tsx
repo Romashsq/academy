@@ -15,6 +15,7 @@ import { useState } from "react";
 interface LessonItem {
   id: string;
   title: string;
+  titleEn: string | null;
   durationMinutes: number;
   isFree: boolean;
   xpReward: number;
@@ -26,7 +27,9 @@ interface ModuleItem {
   id: string;
   emoji: string;
   title: string;
+  titleEn: string | null;
   description: string | null;
+  descriptionEn: string | null;
   completedLessons: number;
   totalLessons: number;
   progress: number;
@@ -87,7 +90,7 @@ export function CoursesClient({ modules }: Props) {
         </div>
         <div className="flex items-center gap-3 text-sm text-gray-400 bg-white/5 rounded-xl px-4 py-2 flex-shrink-0">
           <BookOpen className="w-4 h-4 text-emerald-400" />
-          <span>{totalCompleted}/{totalLessons} уроков</span>
+          <span>{totalCompleted}/{totalLessons} {t("courses.lessons")}</span>
           <span className="text-emerald-400 font-medium">
             {totalLessons > 0 ? Math.round((totalCompleted / totalLessons) * 100) : 0}%
           </span>
@@ -96,7 +99,7 @@ export function CoursesClient({ modules }: Props) {
 
       {/* Баннер "Продолжить" для новичка */}
       {isNewUser && nextLesson && (
-        <div className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-950/50 to-[#070810] p-5">
+        <div className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-500/10 to-background p-5">
           <div className="absolute top-0 right-0 w-40 h-40 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center text-2xl flex-shrink-0">
@@ -104,14 +107,14 @@ export function CoursesClient({ modules }: Props) {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs text-emerald-400 font-medium uppercase tracking-wide">С чего начать</span>
+                <span className="text-xs text-emerald-400 font-medium uppercase tracking-wide">{t("courses.whereToStart")}</span>
               </div>
-              <p className="text-white font-semibold text-sm truncate">{nextLesson.lesson.title}</p>
-              <p className="text-gray-400 text-xs">{nextLesson.mod.title}</p>
+              <p className="text-white font-semibold text-sm truncate">{nextLesson.lesson.titleEn ?? nextLesson.lesson.title}</p>
+              <p className="text-gray-400 text-xs">{nextLesson.mod.titleEn ?? nextLesson.mod.title}</p>
             </div>
             <Link href={`/lessons/${nextLesson.lesson.id}`} className="flex-shrink-0">
               <Badge className="bg-emerald-500 hover:bg-emerald-400 text-white cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium">
-                Начать
+                {t("courses.start")}
                 <ArrowRight className="w-3 h-3" />
               </Badge>
             </Link>
@@ -124,11 +127,11 @@ export function CoursesClient({ modules }: Props) {
         <div className="flex items-center gap-3 p-4 rounded-xl border border-emerald-500/15 bg-emerald-500/5">
           <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
           <span className="text-gray-400 text-sm flex-1 truncate">
-            Продолжить: <span className="text-white">{nextLesson.mod.emoji} {nextLesson.lesson.title}</span>
+            {t("courses.continue")}: <span className="text-white">{nextLesson.mod.emoji} {nextLesson.lesson.titleEn ?? nextLesson.lesson.title}</span>
           </span>
           <Link href={`/lessons/${nextLesson.lesson.id}`}>
             <button className="text-emerald-400 text-xs hover:text-emerald-300 flex items-center gap-1 flex-shrink-0">
-              Открыть <ArrowRight className="w-3 h-3" />
+              {t("courses.open")} <ArrowRight className="w-3 h-3" />
             </button>
           </Link>
         </div>
@@ -141,6 +144,8 @@ export function CoursesClient({ modules }: Props) {
           const isDone = mod.progress === 100;
           const isActive = mod.id === activeModule?.id;
           const isLocked = modIdx > 0 && modules[modIdx - 1].progress < 20 && mod.completedLessons === 0;
+          // Вычисляем один раз на уровне модуля, не внутри lessons.map (иначе O(n²))
+          const nextToDoIdx = mod.lessons.findIndex(l => !l.isCompleted);
 
           return (
             <Card
@@ -167,20 +172,20 @@ export function CoursesClient({ modules }: Props) {
                       <h2 className={`font-syne font-bold text-sm md:text-base truncate
                         ${isDone ? "text-gray-400" : "text-white"}`}
                       >
-                        {mod.title}
+                        {mod.titleEn ?? mod.title}
                       </h2>
                       {isActive && (
                         <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full font-medium flex-shrink-0">
-                          В процессе
+                          {t("courses.inProgress")}
                         </span>
                       )}
                       {isLocked && (
                         <span className="text-[10px] text-gray-600 flex-shrink-0 flex items-center gap-1">
-                          <Lock className="w-3 h-3" /> Рекомендуем закончить предыдущий
+                          <Lock className="w-3 h-3" /> {t("courses.finishPrevious")}
                         </span>
                       )}
                     </div>
-                    <p className="text-gray-500 text-xs line-clamp-1 mb-2">{mod.description}</p>
+                    <p className="text-gray-500 text-xs line-clamp-1 mb-2">{mod.descriptionEn ?? mod.description}</p>
                     <div className="flex items-center gap-3">
                       <Progress value={mod.progress} className="h-1.5 flex-1" />
                       <span className={`text-xs flex-shrink-0 ${isDone ? "text-emerald-400" : "text-gray-500"}`}>
@@ -200,7 +205,7 @@ export function CoursesClient({ modules }: Props) {
               {isExpanded && (
                 <div className="border-t border-white/5 p-3 space-y-1">
                   {mod.lessons.map((lesson, lessonIdx) => {
-                    const isNextToDo = !lesson.isCompleted && lessonIdx === mod.lessons.findIndex(l => !l.isCompleted);
+                    const isNextToDo = !lesson.isCompleted && lessonIdx === nextToDoIdx;
 
                     return (
                       <Link
@@ -235,7 +240,7 @@ export function CoursesClient({ modules }: Props) {
                               : "text-gray-300 group-hover:text-white transition-colors"
                             }`}
                           >
-                            {lesson.title}
+                            {lesson.titleEn ?? lesson.title}
                           </span>
                         </div>
 
@@ -249,7 +254,7 @@ export function CoursesClient({ modules }: Props) {
                           )}
                           <span className="text-gray-600 text-xs flex items-center gap-1">
                             <Clock className="w-3 h-3" />
-                            {lesson.durationMinutes}м
+                            {lesson.durationMinutes}{t("lesson.min")}
                           </span>
                           <span className="text-emerald-700 text-xs flex items-center gap-1">
                             <Star className="w-3 h-3" />

@@ -36,7 +36,7 @@ interface SidebarProps {
 
 export function Sidebar({ name, email, totalXP, currentStreak }: SidebarProps) {
   const pathname = usePathname();
-  const { t, locale } = useTranslation();
+  const { t } = useTranslation();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
@@ -55,9 +55,7 @@ export function Sidebar({ name, email, totalXP, currentStreak }: SidebarProps) {
 
   const initial = (name?.[0] ?? email?.[0] ?? "U").toUpperCase();
 
-  const levelLabel = locale === "en"
-    ? `Lvl.${level} — ${levelTitle}`
-    : `Ур.${level} — ${levelTitle}`;
+  const levelLabel = `Lvl.${level} — ${levelTitle}`;
 
   const navItems = [
     { href: "/dashboard", label: t("nav.overview"), icon: LayoutDashboard },

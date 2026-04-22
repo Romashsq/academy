@@ -17,6 +17,7 @@ datasource db {
 model User {
   id             String   @id @default(cuid())
   email          String   @unique
+  username       String?  @unique  // @handle (lowercase, без символа @)
   name           String?
   image          String?
   emailVerified  DateTime?
@@ -173,17 +174,18 @@ model QuizQuestion {
 }
 
 model QuizAttempt {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  lessonId  String
-  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  score     Int
-  total     Int
-  xpEarned  Int      @default(0)
-  createdAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId      String
+  lesson        Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  score         Int
+  total         Int
+  xpEarned      Int      @default(0)
+  attemptNumber Int      @default(1)
+  createdAt     DateTime @default(now())
 
-  @@unique([userId, lessonId])
+  @@index([userId, lessonId])
   @@map("quiz_attempts")
 }
 
@@ -278,6 +280,8 @@ model PracticeTask {
   description   String
   descriptionEn String
   order         Int
+  imageUrl      String?  // иллюстрация задания (Unsplash CDN)
+  imageAlt      String?  // alt-текст для доступности
 
   lesson      Lesson               @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   submissions PracticeSubmission[]

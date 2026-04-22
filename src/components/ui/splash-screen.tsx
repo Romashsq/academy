@@ -5,10 +5,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Zap } from "lucide-react";
 
 export function SplashScreen() {
+  // true on both SSR and client — splash is in the initial HTML, shows immediately.
+  // Zustand hydration issues are now fixed via skipHydration + StoreHydration.
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
-    const timer = setTimeout(() => setVisible(false), 2800);
+    const timer = setTimeout(() => setVisible(false), 1800);
     return () => clearTimeout(timer);
   }, []);
 
@@ -18,72 +20,59 @@ export function SplashScreen() {
         <motion.div
           key="splash"
           initial={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.5, ease: "easeInOut" }}
+          exit={{ opacity: 0, scale: 1.04 }}
+          transition={{ duration: 0.4, ease: [0.4, 0, 1, 1] }}
           className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#030712]"
         >
-          {/* Outer glow blob */}
+          {/* Ambient glow — один, чистый */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.4 }}
+            initial={{ opacity: 0, scale: 0.6 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, ease: "easeOut", delay: 0.1 }}
-            className="absolute w-[420px] h-[420px] rounded-full bg-emerald-500/20 blur-[80px]"
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="absolute w-[360px] h-[360px] rounded-full bg-lime-500/15 blur-[100px] pointer-events-none"
           />
 
-          {/* Inner tight glow */}
+          {/* Центральный блок */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.3 }}
-            animate={{ opacity: [0, 0.6, 0.4] }}
-            transition={{ duration: 1.4, ease: "easeOut", delay: 0.3, times: [0, 0.5, 1] }}
-            className="absolute w-[180px] h-[180px] rounded-full bg-emerald-400/40 blur-[40px]"
-          />
-
-          {/* Logo container */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.6, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.25 }}
-            className="relative flex flex-col items-center gap-5"
+            initial={{ opacity: 0, y: 12, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
+            className="relative flex flex-col items-center gap-6"
           >
-            {/* Icon */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.5 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.6, ease: "backOut", delay: 0.4 }}
-              className="relative w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-700 flex items-center justify-center shadow-[0_0_40px_8px_rgba(16,185,129,0.5)]"
-            >
-              <Zap className="w-10 h-10 text-white" strokeWidth={2.5} />
-            </motion.div>
+            {/* Иконка */}
+            <div className="relative">
+              {/* Ring */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.7 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
+                className="absolute inset-[-8px] rounded-[22px] border border-lime-500/20"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.5 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
+                className="w-[72px] h-[72px] rounded-2xl bg-gradient-to-br from-lime-400 to-lime-600 flex items-center justify-center shadow-[0_0_32px_rgba(132,204,22,0.45)]"
+              >
+                <Zap className="w-9 h-9 text-black" strokeWidth={2.5} />
+              </motion.div>
+            </div>
 
-            {/* Wordmark */}
+            {/* Текст */}
             <motion.div
-              initial={{ opacity: 0, y: 8 }}
+              initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, ease: "easeOut", delay: 0.65 }}
-              className="flex flex-col items-center gap-1"
+              transition={{ duration: 0.4, ease: "easeOut", delay: 0.22 }}
+              className="flex flex-col items-center gap-1.5"
             >
-              <span className="font-syne font-bold text-3xl text-white tracking-tight">
+              <span className="font-syne font-bold text-[28px] text-white tracking-tight leading-none">
                 VibeCode Academy
               </span>
-              <motion.span
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.4, delay: 0.95 }}
-                className="text-emerald-400 text-sm font-medium tracking-widest uppercase"
-              >
+              <span className="text-lime-400/70 text-[11px] font-medium tracking-[0.22em] uppercase">
                 Learn · Build · Ship
-              </motion.span>
+              </span>
             </motion.div>
           </motion.div>
-
-          {/* Bottom pulse bar */}
-          <motion.div
-            initial={{ scaleX: 0, opacity: 0 }}
-            animate={{ scaleX: 1, opacity: 1 }}
-            transition={{ duration: 1.8, ease: "easeInOut", delay: 0.9 }}
-            style={{ originX: 0 }}
-            className="absolute bottom-10 left-1/2 -translate-x-1/2 w-32 h-[2px] rounded-full bg-gradient-to-r from-transparent via-emerald-400 to-transparent"
-          />
         </motion.div>
       )}
     </AnimatePresence>

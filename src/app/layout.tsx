@@ -4,6 +4,7 @@ import { AuthSessionProvider } from "@/components/providers/session-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { ToastContainer } from "@/components/ui/toast-notification";
 import { SplashScreen } from "@/components/ui/splash-screen";
+import { StoreHydration } from "@/components/providers/store-hydration";
 import "./globals.css";
 
 // ============================================
@@ -102,6 +103,7 @@ export default function RootLayout({
       <body className="font-inter antialiased">
         <AuthSessionProvider>
           <ThemeProvider>
+            <StoreHydration />
             <SplashScreen />
             {children}
             <ToastContainer />

@@ -10,8 +10,8 @@ import { prisma } from "@/lib/prisma";
 const updateUserSchema = z.object({
   name: z
     .string()
-    .min(2, "Имя минимум 2 символа")
-    .max(50, "Имя слишком длинное")
+    .min(2, "Name must be at least 2 characters")
+    .max(50, "Name is too long")
     .optional(),
 });
 

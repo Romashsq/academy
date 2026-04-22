@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { CoursesClient } from "./courses-client";
 
+export const dynamic = "force-dynamic";
+
 // ============================================
 // DATA FETCHING
 // ============================================
@@ -11,13 +13,20 @@ async function getCoursesData(userId: string) {
   return prisma.module.findMany({
     where: { isPublished: true },
     orderBy: { order: "asc" },
-    include: {
+    select: {
+      id: true,
+      emoji: true,
+      title: true,
+      titleEn: true,
+      description: true,
+      descriptionEn: true,
       lessons: {
         where: { isPublished: true },
         orderBy: { order: "asc" },
         select: {
           id: true,
           title: true,
+          titleEn: true,
           durationMinutes: true,
           isFree: true,
           xpReward: true,
@@ -49,13 +58,16 @@ export default async function CoursesPage() {
       id: mod.id,
       emoji: mod.emoji,
       title: mod.title,
+      titleEn: mod.titleEn,
       description: mod.description,
+      descriptionEn: mod.descriptionEn,
       completedLessons,
       totalLessons,
       progress: totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0,
       lessons: mod.lessons.map((l) => ({
         id: l.id,
         title: l.title,
+        titleEn: l.titleEn,
         durationMinutes: l.durationMinutes,
         isFree: l.isFree,
         xpReward: l.xpReward,

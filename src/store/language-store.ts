@@ -1,19 +1,6 @@
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
+// Language support removed — English only.
+// This stub is kept to avoid import errors from legacy references.
 
-export type Locale = "ru" | "en";
+export type Locale = "en";
 
-interface LanguageStore {
-  locale: Locale;
-  setLocale: (locale: Locale) => void;
-}
-
-export const useLanguageStore = create<LanguageStore>()(
-  persist(
-    (set) => ({
-      locale: "en",
-      setLocale: (locale) => set({ locale }),
-    }),
-    { name: "vibecode-language" }
-  )
-);
+export const useLanguageStore = () => ({ locale: "en" as Locale, setLocale: () => {} });

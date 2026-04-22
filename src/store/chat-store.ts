@@ -5,6 +5,7 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   createdAt: number;
+  imageUrl?: string;
 }
 
 interface ChatStore {
@@ -12,6 +13,8 @@ interface ChatStore {
   isOpen: boolean;
   isLoading: boolean;
   historyLoaded: boolean;
+  prefillMessage: string | null;
+  lessonContext: string | null;
   addMessage: (msg: Omit<ChatMessage, "id" | "createdAt">, id?: string) => string;
   updateLastAssistant: (content: string) => void;
   clearMessages: () => void;
@@ -19,6 +22,8 @@ interface ChatStore {
   setOpen: (open: boolean) => void;
   setLoading: (loading: boolean) => void;
   setHistoryLoaded: (v: boolean) => void;
+  setPrefillMessage: (msg: string | null) => void;
+  setLessonContext: (ctx: string | null) => void;
 }
 
 export const useChatStore = create<ChatStore>()((set) => ({
@@ -26,6 +31,8 @@ export const useChatStore = create<ChatStore>()((set) => ({
   isOpen: false,
   isLoading: false,
   historyLoaded: false,
+  prefillMessage: null,
+  lessonContext: null,
 
   addMessage: (msg, id) => {
     const newId = id ?? crypto.randomUUID();
@@ -40,12 +47,14 @@ export const useChatStore = create<ChatStore>()((set) => ({
 
   updateLastAssistant: (content) => {
     set((s) => {
-      const msgs = [...s.messages];
-      const last = msgs[msgs.length - 1];
-      if (last?.role === "assistant") {
-        msgs[msgs.length - 1] = { ...last, content };
-      }
-      return { messages: msgs };
+      const msgs = s.messages;
+      const lastIdx = msgs.length - 1;
+      if (lastIdx < 0 || msgs[lastIdx]?.role !== "assistant") return s;
+      // Мутируем последний элемент на месте чтобы не пересоздавать весь массив —
+      // Zustand всё равно триггерит ре-рендер только подписчиков messages
+      const next = [...msgs];
+      next[lastIdx] = { ...msgs[lastIdx], content };
+      return { messages: next };
     });
   },
 
@@ -54,4 +63,6 @@ export const useChatStore = create<ChatStore>()((set) => ({
   setOpen: (open) => set({ isOpen: open }),
   setLoading: (loading) => set({ isLoading: loading }),
   setHistoryLoaded: (v) => set({ historyLoaded: v }),
+  setPrefillMessage: (msg) => set({ prefillMessage: msg }),
+  setLessonContext: (ctx) => set({ lessonContext: ctx }),
 }));

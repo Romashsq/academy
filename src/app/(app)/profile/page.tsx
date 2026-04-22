@@ -37,9 +37,10 @@ async function getProfileData(userId: string) {
           lesson: {
             select: {
               title: true,
+              titleEn: true,
               xpReward: true,
               durationMinutes: true,
-              module: { select: { emoji: true, title: true } },
+              module: { select: { emoji: true, title: true, titleEn: true } },
             },
           },
         },
@@ -98,8 +99,8 @@ export default async function ProfilePage() {
       recentLessons={recentLessons.map((p) => ({
         id: p.id,
         moduleEmoji: p.lesson.module.emoji,
-        lessonTitle: p.lesson.title,
-        moduleTitle: p.lesson.module.title,
+        lessonTitle: p.lesson.titleEn ?? p.lesson.title,
+        moduleTitle: p.lesson.module.titleEn ?? p.lesson.module.title,
         xpReward: p.lesson.xpReward,
         completedAt: p.completedAt ? p.completedAt.toISOString() : null,
       }))}

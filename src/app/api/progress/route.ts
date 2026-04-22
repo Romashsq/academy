@@ -48,6 +48,9 @@ export async function POST(req: NextRequest) {
       newAchievements: result.newAchievements,
       streakUpdated: result.streakUpdated,
       newStreak: result.newStreak,
+      leveledUp: result.leveledUp,
+      newLevel: result.newLevel,
+      newLevelTitle: result.newLevelTitle,
     });
   } catch (error) {
     console.error("[PROGRESS_ERROR]", error);

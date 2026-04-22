@@ -32,11 +32,13 @@ async function searchData(q: string, userId: string) {
       select: {
         id: true,
         title: true,
+        titleEn: true,
         description: true,
+        descriptionEn: true,
         durationMinutes: true,
         xpReward: true,
         isFree: true,
-        module: { select: { id: true, title: true, emoji: true } },
+        module: { select: { id: true, title: true, titleEn: true, emoji: true } },
         progress: {
           where: { userId },
           select: { completed: true },
@@ -56,7 +58,9 @@ async function searchData(q: string, userId: string) {
       select: {
         id: true,
         title: true,
+        titleEn: true,
         description: true,
+        descriptionEn: true,
         emoji: true,
         _count: { select: { lessons: { where: { isPublished: true } } } },
       },
@@ -87,20 +91,20 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         q={q}
         lessons={lessons.map((l) => ({
           id: l.id,
-          title: l.title,
-          description: l.description,
+          title: l.titleEn ?? l.title,
+          description: l.descriptionEn ?? l.description,
           durationMinutes: l.durationMinutes,
           xpReward: l.xpReward,
           isFree: l.isFree,
           isCompleted: l.progress[0]?.completed ?? false,
           moduleEmoji: l.module.emoji,
-          moduleTitle: l.module.title,
+          moduleTitle: l.module.titleEn ?? l.module.title,
         }))}
         modules={modules.map((m) => ({
           id: m.id,
           emoji: m.emoji,
-          title: m.title,
-          description: m.description,
+          title: m.titleEn ?? m.title,
+          description: m.descriptionEn ?? m.description,
           lessonsCount: m._count.lessons,
         }))}
       />

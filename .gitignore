@@ -37,3 +37,28 @@ next-env.d.ts
 # prisma
 prisma/dev.db
 prisma/dev.db-journal
+
+# course content (private)
+prisma/seed.ts
+prisma/lessons-content.ts
+prisma/lessons-content-en.ts
+prisma/lessons-content-en-part2.ts
+prisma/lessons-content-en-part3.ts
+prisma/lessons-content-en-part4.ts
+prisma/lessons-module6.ts
+prisma/lessons-module7.ts
+prisma/lessons-module8.ts
+prisma/lessons-module9.ts
+prisma/practice-data.ts
+prisma/quiz-data.ts
+prisma/quiz-seed.ts
+prisma/en-content-seed.ts
+
+# markdown docs
+*.md
+
+# claude agent config
+.claude/
+
+# user uploads
+public/uploads/

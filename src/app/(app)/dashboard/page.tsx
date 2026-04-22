@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { calculateLevel } from "@/lib/utils";
 import { DashboardClient } from "./dashboard-client";
 
+export const dynamic = "force-dynamic";
+
 // ============================================
 // SERVER COMPONENT — загрузка данных
 // ============================================
@@ -24,13 +26,18 @@ async function getDashboardData(userId: string) {
     prisma.module.findMany({
       where: { isPublished: true },
       orderBy: { order: "asc" },
-      include: {
+      select: {
+        id: true,
+        emoji: true,
+        title: true,
+        titleEn: true,
         lessons: {
           where: { isPublished: true },
           orderBy: { order: "asc" },
           select: {
             id: true,
             title: true,
+            titleEn: true,
             durationMinutes: true,
             isFree: true,
             xpReward: true,
@@ -51,6 +58,7 @@ async function getDashboardData(userId: string) {
         lesson: {
           select: {
             title: true,
+            titleEn: true,
             xpReward: true,
             module: { select: { emoji: true } },
           },
@@ -95,7 +103,7 @@ export default async function DashboardPage() {
     calculateLevel(user.totalXP);
 
   // Найти следующий незавершённый урок
-  let nextLesson: { lessonId: string; moduleEmoji: string; lessonTitle: string; moduleTitle: string; durationMinutes?: number; xpReward?: number } | null = null;
+  let nextLesson: { lessonId: string; moduleEmoji: string; lessonTitle: string; lessonTitleEn?: string | null; moduleTitle: string; moduleTitleEn?: string | null; durationMinutes?: number; xpReward?: number } | null = null;
   for (const mod of modules) {
     for (const lesson of mod.lessons) {
       if (!lesson.progress[0]?.completed) {
@@ -103,7 +111,9 @@ export default async function DashboardPage() {
           lessonId: lesson.id,
           moduleEmoji: mod.emoji,
           lessonTitle: lesson.title,
+          lessonTitleEn: lesson.titleEn,
           moduleTitle: mod.title,
+          moduleTitleEn: mod.titleEn,
           durationMinutes: lesson.durationMinutes,
           xpReward: lesson.xpReward,
         };
@@ -120,6 +130,7 @@ export default async function DashboardPage() {
       id: mod.id,
       emoji: mod.emoji,
       title: mod.title,
+      titleEn: mod.titleEn,
       completedLessons: modCompleted,
       totalLessons: modTotal,
       progress: modTotal > 0 ? (modCompleted / modTotal) * 100 : 0,
@@ -144,6 +155,7 @@ export default async function DashboardPage() {
         id: p.id,
         moduleEmoji: p.lesson.module.emoji,
         lessonTitle: p.lesson.title,
+        lessonTitleEn: p.lesson.titleEn,
         xpReward: p.lesson.xpReward,
       }))}
       achievements={achievements.map((ua) => ({
@@ -152,6 +164,7 @@ export default async function DashboardPage() {
         title: ua.achievement.title,
         xpReward: ua.achievement.xpReward,
       }))}
+      lastActiveAt={user.lastActiveAt ? user.lastActiveAt.toISOString() : null}
       nextLesson={nextLesson}
     />
   );

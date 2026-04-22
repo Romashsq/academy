@@ -7,9 +7,8 @@ import { prisma } from "@/lib/prisma";
 
 export interface AiReview {
   rating: "excellent" | "good" | "needs_work";
-  feedback: string;   // основная обратная связь (2-3 предложения)
-  tips: string[];     // 2-3 конкретных совета
-  locale: string;
+  feedback: string;
+  tips: string[];
 }
 
 // ============================================
@@ -40,8 +39,7 @@ async function fetchImageAsBase64(url: string): Promise<string | null> {
 // ============================================
 
 export async function generatePracticeReview(
-  submissionId: string,
-  locale: "ru" | "en" = "ru"
+  submissionId: string
 ): Promise<AiReview> {
   const submission = await prisma.practiceSubmission.findUnique({
     where: { id: submissionId },
@@ -59,28 +57,43 @@ export async function generatePracticeReview(
 
   if (!submission) throw new Error("Submission not found");
 
-  const taskTitle =
-    locale === "en" ? (submission.task.titleEn ?? submission.task.title) : submission.task.title;
-  const taskDescription =
-    locale === "en"
-      ? (submission.task.descriptionEn ?? submission.task.description)
-      : submission.task.description;
+  const taskTitle = submission.task.titleEn ?? submission.task.title;
+  const taskDescription = submission.task.descriptionEn ?? submission.task.description;
 
-  const isRu = locale === "ru";
+  const systemPrompt = `You are a strict mentor at VibeCode Academy, an online platform teaching AI development,
+Vibe Coding, and prompt engineering. The course covers: AI dev, prompt engineering,
+Telegram bots (Python/aiogram), Vibe Coding tools (Cursor, Bolt.new, Lovable), APIs, AI agents.
 
-  const systemPrompt = isRu
-    ? `Ты ментор на образовательной платформе по вайбкодингу с Claude AI.
-Проверяешь практические задания студентов. Твои ревью:
-- Конкретные и по делу (не воды)
-- Поддерживающие, но честные
-- На русском языке
-- Ответ строго в JSON без markdown`
-    : `You are a mentor on a vibe coding education platform.
-You review students' practice submissions. Your reviews are:
+MANDATORY STEPS before scoring:
+
+STEP 1 — STRICT RELEVANCE CHECK:
+Look at the submitted content and ask yourself: "Does this CLEARLY demonstrate the task?"
+
+IRRELEVANT content (immediately needs_work):
+- Photos of cats, animals, nature, people, memes
+- Desktop screenshot without code or tools
+- Random websites unrelated to the task
+- Empty/blank screen or just a browser window
+- Any image/file NOT demonstrating completion of this specific task
+- Screenshots without code, terminal, working result, or a tool from the task
+
+ONLY if the content CLEARLY shows:
+✓ Code (in editor, terminal, IDE)
+✓ A working bot/site/app
+✓ Interface of a tool from the task (Cursor, Bolt, Claude, Telegram, etc.)
+✓ Actual result of completing the task
+→ proceed to STEP 2
+
+When in doubt about relevance — mark as needs_work.
+DO NOT invent praise for irrelevant content.
+
+STEP 2 — QUALITY ASSESSMENT (relevant submissions only):
 - Specific and to the point (no fluff)
 - Encouraging but honest
+- Note what's good and what can be improved
 - In English
-- Answer strictly in JSON, no markdown`;
+
+Answer strictly in JSON, no markdown.`;
 
   const outputSchema = `{
   "rating": "excellent" | "good" | "needs_work",
@@ -88,23 +101,18 @@ You review students' practice submissions. Your reviews are:
   "tips": ["tip1", "tip2", "tip3"]
 }`;
 
-  // Строим детали сабмита
   const submissionDetails: string[] = [];
   if (submission.type === "link" && submission.linkUrl) {
-    submissionDetails.push(isRu ? `Ссылка: ${submission.linkUrl}` : `Link: ${submission.linkUrl}`);
+    submissionDetails.push(`Link: ${submission.linkUrl}`);
   }
   if ((submission.type === "file" || submission.type === "screenshot") && submission.fileName) {
-    submissionDetails.push(isRu ? `Файл: ${submission.fileName}` : `File: ${submission.fileName}`);
+    submissionDetails.push(`File: ${submission.fileName}`);
   }
   if (submission.comment) {
-    submissionDetails.push(isRu
-      ? `Комментарий студента: ${submission.comment}`
-      : `Student comment: ${submission.comment}`);
+    submissionDetails.push(`Student comment: ${submission.comment}`);
   }
 
-  const userText = isRu
-    ? `Задание: ${taskTitle}\nОписание: ${taskDescription}\n\nСтудент отправил:\n${submissionDetails.join("\n") || "Без комментария"}\n\nПроверь и верни JSON:\n${outputSchema}`
-    : `Task: ${taskTitle}\nDescription: ${taskDescription}\n\nStudent submitted:\n${submissionDetails.join("\n") || "No comment"}\n\nReview and return JSON:\n${outputSchema}`;
+  const userText = `Task: ${taskTitle}\nTask description: ${taskDescription}\n\nStudent submitted:\n${submissionDetails.join("\n") || "No comment"}\n\nFIRST check: is the content actually related to this task? If not — needs_work, no excuses.\n\nREMEMBER: If the screenshot has NO clear signs of task completion (code, working result, required tool) — it's AUTOMATICALLY needs_work. Don't invent approval.\nReturn JSON:\n${outputSchema}`;
 
   // Строим контент сообщения
   type UserContent = OpenAI.ChatCompletionContentPart[];
@@ -139,16 +147,12 @@ You review students' practice submissions. Your reviews are:
       rating: ["excellent", "good", "needs_work"].includes(obj.rating) ? obj.rating : "good",
       feedback: String(obj.feedback ?? ""),
       tips: Array.isArray(obj.tips) ? obj.tips.map(String).slice(0, 3) : [],
-      locale,
     };
   } catch {
     parsed = {
       rating: "good",
-      feedback: isRu
-        ? "Работа принята. Продолжай практиковаться!"
-        : "Work received. Keep practicing!",
+      feedback: "Work received. Keep practicing!",
       tips: [],
-      locale,
     };
   }
 

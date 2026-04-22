@@ -25,6 +25,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   // Используем JWT стратегию для Credentials (PrismaAdapter требует database для OAuth)
   session: {
     strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 дней
+  },
+
+  cookies: {
+    sessionToken: {
+      options: {
+        httpOnly: true,
+        sameSite: "lax" as const,
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
   },
 
   pages: {
@@ -92,10 +104,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.role = (user as { role?: string }).role ?? "student";
       }
 
-      // При обновлении сессии (update())
+      // При обновлении сессии (update()) — валидируем данные перед записью в JWT
       if (trigger === "update" && session) {
-        token.name = session.name;
-        token.image = session.image;
+        if (typeof session.name === "string" && session.name.trim().length >= 2 && session.name.length <= 50) {
+          token.name = session.name.trim();
+        }
+        // Разрешаем только HTTPS аватары с доверенных доменов
+        const trustedImageDomains = ["lh3.googleusercontent.com", "avatars.githubusercontent.com"];
+        if (
+          typeof session.image === "string" &&
+          session.image.startsWith("https://") &&
+          trustedImageDomains.some((d) => session.image.includes(d))
+        ) {
+          token.image = session.image;
+        }
       }
 
       return token;

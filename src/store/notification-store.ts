@@ -1,10 +1,10 @@
 import { create } from "zustand";
 
 // ============================================
-// ТИПЫ
+// TYPES
 // ============================================
 
-export type NotificationType = "xp" | "achievement" | "streak" | "info" | "error";
+export type NotificationType = "xp" | "achievement" | "streak" | "info" | "error" | "levelup";
 
 export interface Notification {
   id: string;
@@ -34,7 +34,7 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
       notifications: [...state.notifications, { ...notification, id }],
     }));
 
-    // Авто-удаление через 4 секунды
+    // Auto-dismiss after 4 seconds
     setTimeout(() => {
       set((state) => ({
         notifications: state.notifications.filter((n) => n.id !== id),
@@ -51,50 +51,51 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
 }));
 
 // ============================================
-// ХЕЛПЕРЫ — i18n-aware уведомления
+// NOTIFICATION HELPERS
 // ============================================
-
-function getLocale(): "ru" | "en" {
-  try {
-    const stored = localStorage.getItem("vibecode-language");
-    if (stored) {
-      const parsed = JSON.parse(stored) as { state?: { locale?: string } };
-      if (parsed?.state?.locale === "en") return "en";
-    }
-  } catch {
-    // ignore
-  }
-  return "ru";
-}
 
 export const notify = {
   xp: (amount: number) => {
-    const locale = getLocale();
     useNotificationStore.getState().add({
       type: "xp",
       emoji: "⭐",
       title: `+${amount} XP`,
-      message: locale === "en" ? "Lesson complete!" : "Урок завершён!",
+      message: "Lesson complete!",
     });
   },
 
   achievement: (title: string, emoji: string, xpReward: number) => {
-    const locale = getLocale();
     useNotificationStore.getState().add({
       type: "achievement",
       emoji,
-      title: locale === "en" ? `Achievement: ${title}` : `Достижение: ${title}`,
+      title: `Achievement: ${title}`,
       message: `+${xpReward} XP`,
     });
   },
 
   streak: (days: number) => {
-    const locale = getLocale();
     useNotificationStore.getState().add({
       type: "streak",
       emoji: "🔥",
-      title: locale === "en" ? `${days}-day streak!` : `${days}-дневная серия!`,
-      message: locale === "en" ? "Keep it up" : "Продолжай в том же духе",
+      title: `${days}-day streak!`,
+      message: "Keep it up",
+    });
+  },
+
+  info: (message: string, emoji = "💪") => {
+    useNotificationStore.getState().add({
+      type: "info",
+      emoji,
+      title: message,
+    });
+  },
+
+  levelUp: (level: number, title: string) => {
+    useNotificationStore.getState().add({
+      type: "levelup",
+      emoji: "🚀",
+      title: `Level Up! Level ${level} — ${title}`,
+      message: "Keep going, you're on fire!",
     });
   },
 };

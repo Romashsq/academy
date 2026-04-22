@@ -92,7 +92,7 @@ export function LeaderboardClient({ users }: Props) {
                   )}
                 </p>
                 <p className="text-gray-500 text-xs">
-                  Ур.{user.level} — {user.levelTitle} · {user.lessonsCount} {t("leaderboard.lessons")}
+                  Lvl.{user.level} — {user.levelTitle} · {user.lessonsCount} {t("leaderboard.lessons")}
                 </p>
               </div>
 

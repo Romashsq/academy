@@ -4,7 +4,8 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 const submitSchema = z.object({
-  answers: z.array(z.number().int().min(0)),
+  // max(50) — защита от DoS через огромный массив
+  answers: z.array(z.number().int().min(0).max(999)).max(50),
 });
 
 // POST /api/quiz/[lessonId]/submit — проверить ответы и выдать XP
@@ -25,17 +26,6 @@ export async function POST(
 
   const { answers } = parsed.data;
   const userId = session.user.id;
-
-  // Проверяем: уже проходил?
-  const existing = await prisma.quizAttempt.findUnique({
-    where: { userId_lessonId: { userId, lessonId: params.lessonId } },
-  });
-  if (existing) {
-    return NextResponse.json(
-      { error: "Already attempted" },
-      { status: 409 }
-    );
-  }
 
   // Получаем квиз с правильными ответами
   const quiz = await prisma.quiz.findUnique({
@@ -61,18 +51,30 @@ export async function POST(
 
   const score = results.filter((r) => r.correct).length;
   const total = quiz.questions.length;
-  const xpEarned = total > 0 ? Math.round(quiz.xpReward * score / total) : 0;
+  const rawXp = total > 0 ? Math.round(quiz.xpReward * score / total) : 0;
 
-  // Сохраняем попытку и обновляем XP в транзакции
+  // Найти предыдущий лучший результат
+  const bestPrevious = await prisma.quizAttempt.findFirst({
+    where: { userId, lessonId: params.lessonId },
+    orderBy: { score: "desc" },
+    select: { score: true, xpEarned: true, attemptNumber: true },
+  });
+
+  const attemptNumber = (bestPrevious?.attemptNumber ?? 0) + 1;
+
+  // XP начисляем только если улучшился результат (или первая попытка)
+  const prevBestScore = bestPrevious?.score ?? -1;
+  const xpEarned = score > prevBestScore ? rawXp - (bestPrevious?.xpEarned ?? 0) : 0;
+  const isNewBest = score > prevBestScore;
+
   await prisma.$transaction([
     prisma.quizAttempt.create({
-      data: { userId, lessonId: params.lessonId, score, total, xpEarned },
+      data: { userId, lessonId: params.lessonId, score, total, xpEarned: rawXp, attemptNumber },
     }),
-    prisma.user.update({
-      where: { id: userId },
-      data: { totalXP: { increment: xpEarned } },
-    }),
+    ...(xpEarned > 0
+      ? [prisma.user.update({ where: { id: userId }, data: { totalXP: { increment: xpEarned } } })]
+      : []),
   ]);
 
-  return NextResponse.json({ score, total, xpEarned, results });
+  return NextResponse.json({ score, total, xpEarned, results, isNewBest, attemptNumber });
 }

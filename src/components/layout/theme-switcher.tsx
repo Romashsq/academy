@@ -2,15 +2,17 @@
 
 import { Moon, Sun } from "lucide-react";
 import { useThemeStore } from "@/store/theme-store";
+import { useTranslation } from "@/hooks/use-translation";
 
 export function ThemeSwitcher() {
   const { theme, toggle } = useThemeStore();
+  const { t } = useTranslation();
   const isDark = theme === "dark";
 
   return (
     <button
       onClick={toggle}
-      aria-label={isDark ? "Включить светлую тему" : "Включить тёмную тему"}
+      aria-label={isDark ? t("theme.switchToLight") : t("theme.switchToDark")}
       className={`
         relative w-14 h-7 rounded-full border transition-all duration-300 flex items-center
         ${isDark

@@ -26,16 +26,16 @@ export async function POST(
   if (submission.aiReview && submission.aiReviewAt) {
     const ageMs = Date.now() - new Date(submission.aiReviewAt).getTime();
     if (ageMs < 10 * 60 * 1000) {
-      return NextResponse.json({ review: JSON.parse(submission.aiReview) });
+      try {
+        return NextResponse.json({ review: JSON.parse(submission.aiReview) });
+      } catch {
+        // Повреждённый JSON в кэше — генерируем заново
+      }
     }
   }
 
-  // Определяем locale из заголовка запроса
-  const body = await req.json().catch(() => ({}));
-  const locale: "ru" | "en" = body.locale === "en" ? "en" : "ru";
-
   try {
-    const review = await generatePracticeReview(params.submissionId, locale);
+    const review = await generatePracticeReview(params.submissionId);
     return NextResponse.json({ review });
   } catch (err) {
     console.error("AI review error:", err);

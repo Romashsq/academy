@@ -4,7 +4,6 @@ import { Flame, Star, Search, Menu } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { formatXP } from "@/lib/utils";
-import { LanguageSwitcher } from "./language-switcher";
 import { ThemeSwitcher } from "./theme-switcher";
 import { useTranslation } from "@/hooks/use-translation";
 
@@ -43,9 +42,7 @@ export function Header({ title, totalXP, currentStreak }: HeaderProps) {
 
       {/* Правая часть */}
       <div className="flex items-center gap-3">
-        {/* Переключатели темы и языка — всегда видны */}
         <ThemeSwitcher />
-        <LanguageSwitcher />
 
         {isLoggedIn ? (
           <>

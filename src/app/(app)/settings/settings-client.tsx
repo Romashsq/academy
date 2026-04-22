@@ -24,7 +24,7 @@ interface Props {
 // ============================================
 
 export function SettingsClient({ initialName, email, role, createdAt, totalXP }: Props) {
-  const { t, locale } = useTranslation();
+  const { t } = useTranslation();
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -71,7 +71,7 @@ export function SettingsClient({ initialName, email, role, createdAt, totalXP }:
           <div className="flex justify-between items-center py-2 border-b border-white/10">
             <span className="text-gray-400 text-sm">{t("settings.registered")}</span>
             <span className="text-white text-sm">
-              {new Date(createdAt).toLocaleDateString(locale === "en" ? "en-US" : "ru-RU", {
+              {new Date(createdAt).toLocaleDateString("en-US", {
                 day: "numeric",
                 month: "long",
                 year: "numeric",

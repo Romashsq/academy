@@ -1,14 +1,51 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notFound, redirect } from "next/navigation";
+import type { Metadata } from "next";
 import { LessonViewer } from "./lesson-viewer";
+
+// ============================================
+// SEO METADATA
+// ============================================
+
+export async function generateMetadata(
+  { params }: { params: { lessonId: string } }
+): Promise<Metadata> {
+  const lesson = await prisma.lesson.findUnique({
+    where: { id: params.lessonId, isPublished: true },
+    select: {
+      title: true,
+      titleEn: true,
+      description: true,
+      descriptionEn: true,
+      module: { select: { title: true, titleEn: true, emoji: true } },
+    },
+  });
+
+  if (!lesson) return { title: "Lesson — VibeCode Academy" };
+
+  const title = lesson.titleEn ?? lesson.title;
+  const description = lesson.descriptionEn ?? lesson.description;
+  const moduleTitle = lesson.module.titleEn ?? lesson.module.title;
+
+  return {
+    title: `${title} — VibeCode Academy`,
+    description: description || `${lesson.module.emoji} ${moduleTitle} · VibeCode Academy`,
+    openGraph: {
+      title: `${title} — VibeCode Academy`,
+      description: description || `Learn ${title} in the AI development course`,
+      type: "article",
+    },
+  };
+}
 
 // ============================================
 // DATA FETCHING
 // ============================================
 
 async function getLessonData(lessonId: string, userId: string) {
-  const [lesson, quiz, quizAttempt, practiceTasks] = await Promise.all([
+  // Все запросы параллельно + модули сразу для вычисления nextModule без дополнительного запроса
+  const [lesson, quiz, quizAttempt, practiceTasks, allModules] = await Promise.all([
     prisma.lesson.findUnique({
       where: { id: lessonId, isPublished: true },
       include: {
@@ -41,8 +78,9 @@ async function getLessonData(lessonId: string, userId: string) {
         },
       },
     }),
-    prisma.quizAttempt.findUnique({
-      where: { userId_lessonId: { userId, lessonId } },
+    prisma.quizAttempt.findFirst({
+      where: { userId, lessonId },
+      orderBy: { score: "desc" },
       select: { score: true, total: true, xpEarned: true },
     }),
     prisma.practiceTask.findMany({
@@ -56,9 +94,15 @@ async function getLessonData(lessonId: string, userId: string) {
         },
       },
     }),
+    // Загружаем только id и order всех модулей — дёшево, зато не нужен отдельный последовательный запрос
+    prisma.module.findMany({
+      where: { isPublished: true },
+      select: { id: true, order: true },
+      orderBy: { order: "asc" },
+    }),
   ]);
 
-  return { lesson, quiz, quizAttempt, practiceTasks };
+  return { lesson, quiz, quizAttempt, practiceTasks, allModules };
 }
 
 // ============================================
@@ -73,7 +117,7 @@ export default async function LessonPage({ params }: Props) {
   const session = await auth();
   if (!session) redirect("/login");
 
-  const { lesson, quiz, quizAttempt, practiceTasks } = await getLessonData(
+  const { lesson, quiz, quizAttempt, practiceTasks, allModules } = await getLessonData(
     params.lessonId,
     session.user.id
   );
@@ -87,12 +131,9 @@ export default async function LessonPage({ params }: Props) {
   );
   const nextLesson = lesson.module.lessons[currentIndex + 1] ?? null;
 
-  // Если это последний урок модуля — найти следующий модуль
+  // Если это последний урок модуля — найти следующий модуль из уже загруженного списка (без доп. запроса)
   const nextModule = !nextLesson
-    ? await prisma.module.findFirst({
-        where: { order: lesson.module.order + 1, isPublished: true },
-        select: { id: true },
-      })
+    ? (allModules.find((m) => m.order === lesson.module.order + 1) ?? null)
     : null;
 
   // Парсим options из JSON-строки для каждого вопроса

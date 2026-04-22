@@ -28,6 +28,7 @@ interface QuizAttempt {
   score: number;
   total: number;
   xpEarned: number;
+  attemptNumber?: number;
 }
 
 interface SubmitResult {
@@ -51,7 +52,7 @@ type State = "idle" | "answering" | "submitted";
 // ============================================
 
 export function QuizSection({ lessonId, quiz, previousAttempt, nextLessonId }: Props) {
-  const { t, locale } = useTranslation();
+  const { t } = useTranslation();
   const [state, setState] = useState<State>(
     previousAttempt ? "submitted" : "idle"
   );
@@ -80,7 +81,7 @@ export function QuizSection({ lessonId, quiz, previousAttempt, nextLessonId }: P
 
       if (res.ok) {
         setResults(data.results);
-        setAttempt({ score: data.score, total: data.total, xpEarned: data.xpEarned });
+        setAttempt({ score: data.score, total: data.total, xpEarned: data.xpEarned, attemptNumber: data.attemptNumber });
         setState("submitted");
         if (data.xpEarned > 0) {
           notify.xp(data.xpEarned);
@@ -104,10 +105,7 @@ export function QuizSection({ lessonId, quiz, previousAttempt, nextLessonId }: P
           <div>
             <h3 className="font-syne font-semibold text-white">{t("quiz.title")}</h3>
             <p className="text-gray-500 text-xs">
-              {quiz.questions.length} {locale === "ru"
-                ? quiz.questions.length === 1 ? t("quiz.questionCount_1") : quiz.questions.length < 5 ? t("quiz.questionCount_2") : t("quiz.questionCount_5")
-                : quiz.questions.length === 1 ? t("quiz.questionCount_1") : t("quiz.questionCount_2")
-              } · {t("quiz.bonusUp")} +{quiz.xpReward} XP
+              {quiz.questions.length} {quiz.questions.length === 1 ? t("quiz.questionCount_1") : t("quiz.questionCount_2")} · {t("quiz.bonusUp")} +{quiz.xpReward} XP
             </p>
           </div>
         </div>
@@ -285,17 +283,31 @@ export function QuizSection({ lessonId, quiz, previousAttempt, nextLessonId }: P
         </div>
       )}
 
-      {/* Кнопка следующего урока */}
-      {nextLessonId && (
-        <div className="mt-5 flex justify-end">
+      {/* Действия */}
+      <div className="mt-5 flex items-center justify-between gap-3 flex-wrap">
+        {/* Попробовать снова */}
+        <button
+          onClick={() => {
+            setSelected(quiz.questions.map(() => null));
+            setResults(null);
+            setCurrentQuestion(0);
+            setState("answering");
+          }}
+          className="text-sm text-gray-500 hover:text-gray-300 transition-colors flex items-center gap-1.5"
+        >
+          <Brain className="w-3.5 h-3.5" />
+          {attempt?.attemptNumber ? `Attempt ${attempt.attemptNumber} — retry` : "Retry"}
+        </button>
+
+        {nextLessonId && (
           <Link href={`/lessons/${nextLessonId}`}>
             <Button className="gap-2">
-              {locale === "ru" ? "Следующий урок" : "Next lesson"}
+              Next lesson
               <ArrowRight className="w-4 h-4" />
             </Button>
           </Link>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

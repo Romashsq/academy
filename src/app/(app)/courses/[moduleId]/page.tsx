@@ -15,10 +15,6 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-// ============================================
-// DATA FETCHING
-// ============================================
-
 async function getModuleData(moduleId: string, userId: string) {
   const module = await prisma.module.findUnique({
     where: { id: moduleId, isPublished: true },
@@ -29,7 +25,9 @@ async function getModuleData(moduleId: string, userId: string) {
         select: {
           id: true,
           title: true,
+          titleEn: true,
           description: true,
+          descriptionEn: true,
           durationMinutes: true,
           isFree: true,
           xpReward: true,
@@ -45,10 +43,6 @@ async function getModuleData(moduleId: string, userId: string) {
 
   return module;
 }
-
-// ============================================
-// PAGE COMPONENT
-// ============================================
 
 interface Props {
   params: { moduleId: string };
@@ -68,7 +62,6 @@ export default async function ModulePage({ params }: Props) {
   const progressPercent =
     totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0;
 
-  // Первый незавершённый урок для кнопки "Продолжить"
   const nextLesson = module.lessons.find((l) => !l.progress[0]?.completed);
 
   const totalXP = module.lessons.reduce((acc, l) => acc + l.xpReward, 0);
@@ -77,51 +70,54 @@ export default async function ModulePage({ params }: Props) {
     0
   );
 
+  const moduleTitle = module.titleEn ?? module.title;
+  const moduleDescription = module.descriptionEn ?? module.description;
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
 
-      {/* Хлебные крошки */}
+      {/* Breadcrumb */}
       <Link
         href="/courses"
         className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
       >
         <ChevronLeft className="w-4 h-4" />
-        Все курсы
+        All courses
       </Link>
 
-      {/* Заголовок модуля */}
+      {/* Module header */}
       <div className="flex items-start gap-5">
         <span className="text-5xl flex-shrink-0">{module.emoji}</span>
         <div className="flex-1">
           <h1 className="font-syne text-3xl font-bold text-white mb-2">
-            {module.title}
+            {moduleTitle}
           </h1>
-          <p className="text-gray-400 mb-4">{module.description}</p>
+          <p className="text-gray-400 mb-4">{moduleDescription}</p>
 
-          {/* Мета */}
+          {/* Meta */}
           <div className="flex flex-wrap gap-4 text-sm text-gray-500 mb-4">
             <div className="flex items-center gap-1.5">
               <PlayCircle className="w-4 h-4 text-emerald-400" />
-              {totalLessons} уроков
+              {totalLessons} lessons
             </div>
             <div className="flex items-center gap-1.5">
               <Clock className="w-4 h-4 text-blue-400" />
               ~{Math.round(totalMinutes / 60) > 0
-                ? `${Math.round(totalMinutes / 60)}ч`
-                : `${totalMinutes} мин`}
+                ? `${Math.round(totalMinutes / 60)}h`
+                : `${totalMinutes} min`}
             </div>
             <div className="flex items-center gap-1.5">
               <Star className="w-4 h-4 text-amber-400" />
-              {totalXP} XP за модуль
+              {totalXP} XP total
             </div>
           </div>
 
-          {/* Прогресс */}
+          {/* Progress */}
           <div className="space-y-1">
             <div className="flex justify-between text-xs text-gray-500">
-              <span>Прогресс</span>
+              <span>Progress</span>
               <span className="text-emerald-400">
-                {completedLessons} / {totalLessons} уроков
+                {completedLessons} / {totalLessons} lessons
               </span>
             </div>
             <Progress value={progressPercent} className="h-2" />
@@ -129,11 +125,11 @@ export default async function ModulePage({ params }: Props) {
         </div>
       </div>
 
-      {/* Кнопка продолжить */}
+      {/* Continue button */}
       {nextLesson && (
         <Link href={`/lessons/${nextLesson.id}`}>
           <Button size="lg" className="w-full gap-2">
-            {completedLessons === 0 ? "Начать модуль" : "Продолжить"}
+            {completedLessons === 0 ? "Start module" : "Continue"}
             <PlayCircle className="w-5 h-5" />
           </Button>
         </Link>
@@ -142,16 +138,18 @@ export default async function ModulePage({ params }: Props) {
         <div className="flex items-center justify-center gap-3 py-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
           <CheckCircle2 className="w-6 h-6 text-emerald-400" />
           <span className="font-syne font-semibold text-emerald-400">
-            Модуль завершён! 🎉
+            Module complete! 🎉
           </span>
         </div>
       )}
 
-      {/* Список уроков */}
+      {/* Lesson list */}
       <Card className="overflow-hidden">
         <div className="divide-y divide-white/5">
           {module.lessons.map((lesson, index) => {
             const isDone = lesson.progress[0]?.completed ?? false;
+            const lessonTitle = lesson.titleEn ?? lesson.title;
+            const lessonDescription = lesson.descriptionEn ?? lesson.description;
 
             return (
               <Link
@@ -159,7 +157,7 @@ export default async function ModulePage({ params }: Props) {
                 href={`/lessons/${lesson.id}`}
                 className="flex items-start gap-4 px-5 py-4 hover:bg-white/5 transition-colors group"
               >
-                {/* Иконка статуса */}
+                {/* Status icon */}
                 <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center mt-0.5">
                   {isDone ? (
                     <CheckCircle2 className="w-6 h-6 text-emerald-400" />
@@ -172,7 +170,7 @@ export default async function ModulePage({ params }: Props) {
                   )}
                 </div>
 
-                {/* Контент */}
+                {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-0.5">
                     <span
@@ -182,27 +180,27 @@ export default async function ModulePage({ params }: Props) {
                           : "text-white group-hover:text-emerald-400 transition-colors"
                       }`}
                     >
-                      {lesson.title}
+                      {lessonTitle}
                     </span>
                     {lesson.isFree && !isDone && (
                       <Badge variant="free" className="text-[10px]">
-                        Бесплатно
+                        Free
                       </Badge>
                     )}
                     {!lesson.isFree && !isDone && (
                       <Lock className="w-3 h-3 text-gray-600" />
                     )}
                   </div>
-                  {lesson.description && (
+                  {lessonDescription && (
                     <p className="text-gray-500 text-xs line-clamp-1">
-                      {lesson.description}
+                      {lessonDescription}
                     </p>
                   )}
                 </div>
 
-                {/* Метаданные */}
+                {/* Meta */}
                 <div className="flex items-center gap-3 flex-shrink-0 text-xs">
-                  <span className="text-gray-600">{lesson.durationMinutes} мин</span>
+                  <span className="text-gray-600">{lesson.durationMinutes} min</span>
                   <span className="text-emerald-700">+{lesson.xpReward} XP</span>
                 </div>
               </Link>

@@ -38,15 +38,11 @@ export async function GET(
     options: JSON.parse(q.options) as string[],
   }));
 
-  // Была ли попытка у этого пользователя
-  const attempt = await prisma.quizAttempt.findUnique({
-    where: {
-      userId_lessonId: {
-        userId: session.user.id,
-        lessonId: params.lessonId,
-      },
-    },
-    select: { score: true, total: true, xpEarned: true },
+  // Лучшая попытка пользователя (если была)
+  const attempt = await prisma.quizAttempt.findFirst({
+    where: { userId: session.user.id, lessonId: params.lessonId },
+    orderBy: { score: "desc" },
+    select: { score: true, total: true, xpEarned: true, attemptNumber: true },
   });
 
   return NextResponse.json({
